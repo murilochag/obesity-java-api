@@ -19,4 +19,6 @@ public class Predicao {
     private String resultado;
 
     private LocalDate dataDoResultado;
+
+    private Integer label;
 }
