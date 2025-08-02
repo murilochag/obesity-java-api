@@ -24,9 +24,11 @@ public class PredicaoController {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    @GetMapping
-    public ResponseEntity<List<Predicao>> getPredicoes() {
-        List<Predicao> predicoes = repository.findAll();
+    // passando o id do usuario na rota
+    @GetMapping("/{id}")
+    // PathVariable para pegar as predições por id
+    public ResponseEntity<?> getPredicoes(@PathVariable Integer id) {
+        List<Predicao> predicoes = repository.findByUsuarioIdOrderByDataDoResultadoAsc(id);
         return ResponseEntity.ok(predicoes);
     }
 

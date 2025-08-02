@@ -5,6 +5,8 @@ import lombok.Data;
 
 import java.time.LocalDate;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 @Entity
 @Table(name = "predicoes")
 @Data
@@ -14,7 +16,11 @@ public class Predicao {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    private Integer userId;
+    @ManyToOne
+    // definindo um atributo do tipo usuario para relacionar as tabelas Predicao e Usuario
+    @JoinColumn(name = "usuario_id")
+    @JsonIgnore
+    private Usuario usuario;
 
     private String resultado;
 
