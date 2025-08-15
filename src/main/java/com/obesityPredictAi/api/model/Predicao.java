@@ -6,10 +6,14 @@ import lombok.Data;
 import java.time.LocalDate;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import lombok.Getter;
+import lombok.Setter;
 
 @Entity
 @Table(name = "predicoes")
 @Data
+@Getter
+@Setter
 public class Predicao {
 
     @Id

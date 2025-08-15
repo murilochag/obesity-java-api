@@ -1,6 +1,7 @@
 package com.obesityPredictAi.api.DTO;
 
 public record PredicaoDto(
+    Integer usuario_id,
     Integer gender,
     Integer age,
     float height,
