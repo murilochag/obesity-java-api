@@ -34,7 +34,7 @@ public class AuthService{
 
         if (this.usuarioRepository.findByEmail(request.getEmail()) != null) {
             // interrompe a execução do registro e retorna uma mensagem
-            throw new RuntimeException("Email já cadastrado");
+            throw new IllegalArgumentException("Detectamos que este e-mail já possui cadastro. Acesse sua conta para continuar.");
         }
 
         // criando novo usuário
