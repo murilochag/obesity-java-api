@@ -8,6 +8,8 @@ import com.obesityPredictAi.api.model.Predicao;
 import com.obesityPredictAi.api.model.Usuario;
 import com.obesityPredictAi.api.repository.PredicaoRepository;
 import com.obesityPredictAi.api.repository.UsuarioRepository;
+import com.obesityPredictAi.api.service.ApiPythonAuthService;
+import com.obesityPredictAi.api.service.ApiPythonPredictService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
@@ -29,10 +31,8 @@ public class PredicaoController {
     @Autowired
     private UsuarioRepository usuarioRepository;
 
-
-    private final String PYTHON_API_URL = "http://localhost:5000/predict";
-
-    private final RestTemplate restTemplate = new RestTemplate();
+    @Autowired
+    private ApiPythonPredictService apiPythonPredictService;
 
     // passando o id do usuario na rota
     @GetMapping("/{id}")
@@ -45,59 +45,44 @@ public class PredicaoController {
     @PostMapping
     public ResponseEntity<?> newPredicao(@RequestBody PredicaoDto predicaoDto) {
         try {
-            // Monta a entrada para a API Python
             List<Object> entrada = construirEntrada(predicaoDto);
-            Map<String, Object> body = Map.of("entrada", entrada);
-
-            // Configura cabeçalhos da requisição
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-
-            // Chamada para a API Python
-            String pythonUrl = "http://localhost:5000/predict";
-            RestTemplate restTemplate = new RestTemplate();
-            ResponseEntity<String> response = restTemplate.postForEntity(pythonUrl, requestEntity, String.class);
-
-            if (!response.getStatusCode().is2xxSuccessful()) {
-                return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                        .body("Erro na chamada da API Python");
-            }
-
-            // Interpreta a resposta JSON da API Python
-            Map<String, Object> respostaPython = parseJson(response.getBody());
+            Map<String, Object> respostaPython = apiPythonPredictService.predict(entrada);
 
             Integer labelNumerica = (Integer) respostaPython.get("label");
             ObesidadeLabel labelDescricao = ObesidadeLabel.fromCode(labelNumerica);
 
-            // Busca o usuário pelo ID recebido no DTO
             Optional<Usuario> usuarioOpt = usuarioRepository.findById(predicaoDto.usuario_id());
             if (usuarioOpt.isEmpty()) {
                 return ResponseEntity.badRequest().body("Usuário não encontrado");
             }
             Usuario usuario = usuarioOpt.get();
 
-            // Cria e salva a predição
             Predicao predicao = new Predicao();
             predicao.setUsuario(usuario);
             predicao.setLabel(labelNumerica);
             predicao.setResultado(labelDescricao.getDescricao());
             predicao.setDataDoResultado(LocalDate.now());
-
             repository.save(predicao);
 
-            // Retorna a resposta final
-            Map<String, Object> respostaFinal = Map.of(
+            usuarioRepository.findById(predicaoDto.usuario_id())
+                    .ifPresent(userExist -> {
+                        userExist.setGenero(predicaoDto.gender());
+                        userExist.setIdade(predicaoDto.age());
+                        userExist.setAltura(predicaoDto.height());
+                        userExist.setPeso(predicaoDto.weight());
+                        usuarioRepository.save(userExist);
+                    });
+
+            return ResponseEntity.ok(Map.of(
                     "codigo", labelNumerica,
                     "descricao", labelDescricao.getDescricao()
-            );
-
-            return ResponseEntity.ok(respostaFinal);
+            ));
 
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Erro ao processar predição: " + e.getMessage());
         }
     }
+
 
     // Método auxiliar para montar a lista de entrada
     private List<Object> construirEntrada(PredicaoDto dto) {

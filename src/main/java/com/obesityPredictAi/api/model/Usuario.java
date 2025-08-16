@@ -31,6 +31,17 @@ public class Usuario implements UserDetails{
     @OneToMany(mappedBy = "usuario")
     private List<Predicao> predicao;
 
+    private Integer genero;
+
+    private Integer idade;
+
+    private float altura;
+
+    private float peso;
+
+    @Lob
+    private byte[] imagem;
+
     // métodos UserDetails
 
     //  retorna as autoridades concedidas aos usuarios
