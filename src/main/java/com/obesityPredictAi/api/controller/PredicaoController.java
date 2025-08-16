@@ -2,9 +2,12 @@ package com.obesityPredictAi.api.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.obesityPredictAi.api.DTO.HistoricoDTO;
 import com.obesityPredictAi.api.DTO.PredicaoDto;
+import com.obesityPredictAi.api.DTO.HistoricoRespostaDTO;
 import com.obesityPredictAi.api.ENUM.ObesidadeLabel;
 import com.obesityPredictAi.api.model.Predicao;
+import com.obesityPredictAi.api.model.Usuario;
 import com.obesityPredictAi.api.model.Usuario;
 import com.obesityPredictAi.api.repository.PredicaoRepository;
 import com.obesityPredictAi.api.repository.UsuarioRepository;
@@ -32,15 +35,49 @@ public class PredicaoController {
     private UsuarioRepository usuarioRepository;
 
     @Autowired
+    private UsuarioRepository usuarioRepository;
+
+    @Autowired
     private ApiPythonPredictService apiPythonPredictService;
 
-    // passando o id do usuario na rota
     @GetMapping("/{id}")
-    // PathVariable para pegar as predições por id
-    public ResponseEntity<?> getPredicoes(@PathVariable Integer id) {
+    public ResponseEntity<HistoricoRespostaDTO<List<HistoricoDTO>>> getPredicoes(@PathVariable Integer id) {
+        // Verifica se o usuário existe
+        Optional<Usuario> usuario = usuarioRepository.findById(id);
+        if (usuario.isEmpty()) {
+            HistoricoRespostaDTO<List<HistoricoDTO>> respostaErro =
+                    new HistoricoRespostaDTO<>(null, "Usuário não encontrado");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(respostaErro);
+        }
+
+        // Busca histórico do usuário
         List<Predicao> predicoes = repository.findByUsuarioIdOrderByDataDoResultadoAsc(id);
-        return ResponseEntity.ok(predicoes);
+
+        // Converte Predicao -> HistoricoDTO
+        List<HistoricoDTO> dadosFormatados = predicoes.stream().map(p -> {
+            String resultado;
+            try {
+                resultado = ObesidadeLabel.fromCode(p.getLabel()).getDescricao();
+            } catch (IllegalArgumentException e) {
+                resultado = "Código desconhecido (" + p.getLabel() + ")";
+            }
+
+            return new HistoricoDTO(
+                    p.getDataDoResultado(),
+                    resultado,
+                    p.getLabel()
+            );
+        }).toList();
+
+        // Retorna resposta (lista vazia se não houver histórico)
+        HistoricoRespostaDTO<List<HistoricoDTO>> resposta =
+                new HistoricoRespostaDTO<>(dadosFormatados, predicoes.isEmpty()
+                        ? "Usuário sem histórico"
+                        : "Dados retornados com sucesso");
+
+        return ResponseEntity.ok(resposta);
     }
+
 
     @PostMapping
     public ResponseEntity<?> newPredicao(@RequestBody PredicaoDto predicaoDto) {
