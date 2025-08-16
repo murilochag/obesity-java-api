@@ -5,6 +5,8 @@ import com.obesityPredictAi.api.model.Usuario;
 import com.obesityPredictAi.api.repository.TokenRepository;
 import com.obesityPredictAi.api.service.TokenService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -34,7 +36,7 @@ public class AuthController {
     private TokenRepository tokenRepository;
 
     @PostMapping("/register")
-    public ResponseEntity<Void> register(@RequestBody RegisterRequestDTO request){
+    public ResponseEntity<Void> register(@Valid @RequestBody RegisterRequestDTO request){
         authService.register(request);
         return ResponseEntity.ok().build();
     }
