@@ -18,3 +18,5 @@ public record PredicaoDto(
     Integer alcohol,
     Integer transportation
 ) {}
+
+
