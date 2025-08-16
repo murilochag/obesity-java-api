@@ -1,5 +1,6 @@
 package com.obesityPredictAi.api.infra.security;
 
+import com.obesityPredictAi.api.repository.TokenRepository;
 import com.obesityPredictAi.api.repository.UsuarioRepository;
 import com.obesityPredictAi.api.service.TokenService;
 import jakarta.servlet.FilterChain;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.Instant;
 
 @Component
 public class SecurityFilter extends OncePerRequestFilter {
@@ -24,6 +26,10 @@ public class SecurityFilter extends OncePerRequestFilter {
     @Autowired
     UsuarioRepository usuarioRepository;
 
+    @Autowired
+    TokenRepository tokenRepository;
+
+
     // responsavel por validar o token a cada requisicao
     // intercepta todas as requisicoes HTTP que chegam a sua API
     @Override
@@ -32,17 +38,25 @@ public class SecurityFilter extends OncePerRequestFilter {
         var token = this.recoverToken(request);
 
         if (token != null) {
-            // valida o token e extrai o email
+            // valida JWT
             var email = tokenService.validateToken(token);
 
-            // carrega os detalhes do usuario do banco de dados
-            UserDetails user = usuarioRepository.findByEmail(email);
+            if (!email.isEmpty()) {
+                // verifica se o token está ativo e ainda não expirou no banco
+                var tokenEntity = tokenRepository.findByTokenAndAtivoTrue(token).orElse(null);
 
-            // cria um objeto de autenticacao
-            var authentication = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
+                if (tokenEntity != null && tokenEntity.getDataExpiracao().isAfter(Instant.now())) {
+                    // carrega detalhes do usuário
+                    UserDetails user = usuarioRepository.findByEmail(email);
 
-            // armazena os detalhes do usuario autenticado no SecurityContextHolder
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+                    var authentication = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                } else {
+                    // token inválido ou expirado
+                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token inválido ou expirado");
+                    return;
+                }
+            }
         }
 
         // continua o fluxo da requisicao (passa para os controladores)

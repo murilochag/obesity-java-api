@@ -62,4 +62,10 @@ public class AuthService{
         return tokenService.generateToken((Usuario) auth.getPrincipal());
     }
 
+    public Authentication authenticate(LoginRequestDTO request) {
+        UsernamePasswordAuthenticationToken usernamePassword =
+                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getSenha());
+        return authenticationManager.authenticate(usernamePassword);
+    }
+
 }
