@@ -15,6 +15,7 @@ import com.obesityPredictAi.api.service.ApiPythonAuthService;
 import com.obesityPredictAi.api.service.ApiPythonPredictService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -35,23 +36,15 @@ public class PredicaoController {
     private UsuarioRepository usuarioRepository;
 
     @Autowired
-    private UsuarioRepository usuarioRepository;
-
-    @Autowired
     private ApiPythonPredictService apiPythonPredictService;
 
-    @GetMapping("/{id}")
-    public ResponseEntity<HistoricoRespostaDTO<List<HistoricoDTO>>> getPredicoes(@PathVariable Integer id) {
-        // Verifica se o usuário existe
-        Optional<Usuario> usuario = usuarioRepository.findById(id);
-        if (usuario.isEmpty()) {
-            HistoricoRespostaDTO<List<HistoricoDTO>> respostaErro =
-                    new HistoricoRespostaDTO<>(null, "Usuário não encontrado");
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(respostaErro);
-        }
+    @GetMapping("/me")
+    public ResponseEntity<HistoricoRespostaDTO<List<HistoricoDTO>>> getPredicoes() {
+        // Obtém o usuário autenticado do SecurityContextHolder
+        Usuario usuario = (Usuario) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
         // Busca histórico do usuário
-        List<Predicao> predicoes = repository.findByUsuarioIdOrderByDataDoResultadoAsc(id);
+        List<Predicao> predicoes = repository.findByUsuarioIdOrderByDataDoResultadoAsc(usuario.getId());
 
         // Converte Predicao -> HistoricoDTO
         List<HistoricoDTO> dadosFormatados = predicoes.stream().map(p -> {
@@ -82,18 +75,18 @@ public class PredicaoController {
     @PostMapping
     public ResponseEntity<?> newPredicao(@RequestBody PredicaoDto predicaoDto) {
         try {
+            // Obtém o usuário autenticado do SecurityContextHolder
+            Usuario usuario = (Usuario) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+            // Construir entrada para o serviço de predição
             List<Object> entrada = construirEntrada(predicaoDto);
             Map<String, Object> respostaPython = apiPythonPredictService.predict(entrada);
 
+            // Extrair resultado da predição
             Integer labelNumerica = (Integer) respostaPython.get("label");
             ObesidadeLabel labelDescricao = ObesidadeLabel.fromCode(labelNumerica);
 
-            Optional<Usuario> usuarioOpt = usuarioRepository.findById(predicaoDto.usuario_id());
-            if (usuarioOpt.isEmpty()) {
-                return ResponseEntity.badRequest().body("Usuário não encontrado");
-            }
-            Usuario usuario = usuarioOpt.get();
-
+            // Criar e salvar a predição
             Predicao predicao = new Predicao();
             predicao.setUsuario(usuario);
             predicao.setLabel(labelNumerica);
@@ -101,15 +94,14 @@ public class PredicaoController {
             predicao.setDataDoResultado(LocalDate.now());
             repository.save(predicao);
 
-            usuarioRepository.findById(predicaoDto.usuario_id())
-                    .ifPresent(userExist -> {
-                        userExist.setGenero(predicaoDto.gender());
-                        userExist.setIdade(predicaoDto.age());
-                        userExist.setAltura(predicaoDto.height());
-                        userExist.setPeso(predicaoDto.weight());
-                        usuarioRepository.save(userExist);
-                    });
+            // Atualizar os dados do usuário
+            usuario.setGenero(predicaoDto.gender());
+            usuario.setIdade(predicaoDto.age());
+            usuario.setAltura(predicaoDto.height());
+            usuario.setPeso(predicaoDto.weight());
+            usuarioRepository.save(usuario);
 
+            // Retornar resposta
             return ResponseEntity.ok(Map.of(
                     "codigo", labelNumerica,
                     "descricao", labelDescricao.getDescricao()
